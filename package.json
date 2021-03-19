@@ -1,90 +1,83 @@
 {
-  "name": "template",
-  "displayName": "Template",
-  "description": "This extension makes file and folder structures easier to reuse by templating them.",
-  "version": "1.2.2",
-  "publisher": "yongwoo",
-  "engines": {
-    "vscode": "^1.40.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/stegano/vscode-template.git"
-  },
-  "categories": [
-    "Other"
-  ],
-  "keywords": [
-    "template",
-    "scaffolding",
-    "vue",
-    "angular",
-    "markup",
-    "folder"
-  ],
-  "icon": "icon.png",
-  "activationEvents": [
-    "onCommand:extension.createNew",
-    "onCommand:extension.createNewWithRename"
-  ],
-  "main": "extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "extension.createNew",
-        "title": "Template: Create New"
-      },
-      {
-        "command": "extension.createNewWithRename",
-        "title": "Template: Create New (with rename)"
-      }
-    ],
-    "menus": {
-      "explorer/context": [
-        {
-          "command": "extension.createNew",
-          "group": "navigation"
-        },
-        {
-          "command": "extension.createNewWithRename",
-          "group": "navigation"
-        }
-      ]
-    },
-    "keybindings": [
-      {
-        "command": "extension.createNew",
-        "key": "ctrl+alt+t",
-        "mac": "ctrl+alt+t",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "extension.createNewWithRename",
-        "key": "ctrl+shift+t",
-        "mac": "ctrl+shift+t",
-        "when": "editorTextFocus"
-      }
-    ]
-  },
-  "scripts": {
-    "test-compile": "tsc -p ./"
-  },
-  "devDependencies": {
-    "@types/glob": "^7.1.1",
-    "@types/mocha": "^5.2.7",
-    "@types/node": "^12.11.7",
-    "@types/vscode": "^1.40.0",
-    "eslint": "^6.6.0",
-    "glob": "^7.1.5",
-    "mocha": "^6.2.2",
-    "ts-loader": "^6.2.1",
-    "typescript": "^3.6.4",
-    "vscode-test": "^1.2.2"
-  },
-  "dependencies": {
-    "all-contributors-cli": "^6.11.1",
-    "change-case": "^3.1.0",
-    "fs-extra": "^8.1.0",
-    "js-beautify": "^1.10.2"
-  }
+	"name": "template",
+	"displayName": "Generate Templates",
+	"description": "This extension makes file and folder structures easier to reuse by templating them. original made by yongwoo",
+	"version": "1.3.0",
+	"publisher": "kidfearless",
+	"engines": {
+		"vscode": "^1.40.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/kidfearless/vscode-template.git"
+	},
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"template",
+		"scaffolding",
+		"vue",
+		"angular",
+		"markup",
+		"folder"
+	],
+	"icon": "icon.png",
+	"activationEvents": [
+		"onCommand:extension.insertTemplate",
+		"onCommand:extension.saveFolderAsTemplate",
+		"onCommand:extension.deleteTemplate"
+	],
+	"main": "extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "extension.insertTemplate",
+				"title": "Template: Insert Template"
+			},
+			{
+				"command": "extension.saveFolderAsTemplate",
+				"title": "Template: Save Folder As Template"
+			},
+			{
+				"command": "extension.deleteTemplate",
+				"title": "Template: Remove A Template From The List"
+			}
+		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "extension.insertTemplate",
+					"group": "template"
+				},
+				{
+					"command": "extension.saveFolderAsTemplate",
+					"group": "template"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"test-compile": "tsc -p ./"
+	},
+	"devDependencies": {
+		"@types/glob": "^7.1.1",
+		"@types/mocha": "^5.2.7",
+		"@types/node": "^12.11.7",
+		"@types/vscode": "^1.40.0",
+		"eslint": "^6.6.0",
+		"glob": "^7.1.5",
+		"mocha": "^6.2.2",
+		"ts-loader": "^6.2.1",
+		"typescript": "^3.6.4",
+		"vscode-test": "^1.2.2",
+		"webpack": "^5.26.3",
+		"webpack-cli": "^4.5.0"
+	},
+	"dependencies": {
+		"all-contributors-cli": "^6.11.1",
+		"change-case": "^3.1.0",
+		"fs-extra": "^8.1.0",
+		"js-beautify": "^1.10.2"
+	}
 }

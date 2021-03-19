@@ -3,197 +3,176 @@ const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs-extra");
 const changeCase = require("change-case");
+const { lstat } = require("fs");
 
-function getWorkingPathDir(context, activeTextEditor, workspace) {
-  if (context) {
-    const { fsPath } = context;
-    const stats = fs.statSync(context.fsPath);
-    return stats.isDirectory() ? fsPath : path.dirname(fsPath);
-  } else if (activeTextEditor) {
-    return path.dirname(activeTextEditor.document.fileName);
-  } else {
-    return workspace.rootPath;
-  }
+let GlobalStoragePath = null;
+
+function GetTargetDirectory(context)
+{
+	if (context)
+	{
+		const { fsPath } = context;
+		const stats = fs.statSync(context.fsPath);
+		return stats.isDirectory() ? fsPath : path.dirname(fsPath);
+	}
+	if (vscode.window.activeTextEditor)
+	{
+		return path.dirname(vscode.window.activeTextEditor.document.fileName);
+	}
+
+	return vscode.workspace.rootPath;
 }
 
-async function replaceTextInFiles(
-  filePath,
-  templateName,
-  replaceFileTextFn,
-  renameFileFn,
-  renameSubDirectoriesFn
-) {
-  try {
-    const stat = await fs.stat(filePath);
-    if (stat.isDirectory()) {
-      const files = await fs.readdir(filePath);
-      await Promise.all(
-        files.map(async entryFilePath => {
-          return replaceTextInFiles(
-            path.resolve(filePath, entryFilePath),
-            templateName,
-            replaceFileTextFn,
-            renameFileFn,
-            renameSubDirectoriesFn
-          )
-        })
-      );
-      if (typeof renameSubDirectoriesFn === 'function') {
-        const currDirectoryName = path.basename(filePath);
-        const newDirectoryName = renameSubDirectoriesFn(currDirectoryName, templateName, {
-          changeCase,
-          path
-        });
-        const newPath = path.resolve(filePath, '../', newDirectoryName);
-        fs.renameSync(filePath, newPath);
-      }
-    } else {
-      const fileText = (await fs.readFile(filePath)).toString("utf8");
-      if (typeof replaceFileTextFn === "function") {
-        await fs.writeFile(
-          filePath,
-          replaceFileTextFn(fileText, templateName, { changeCase, path })
-        );
-        /**
-         * Rename file
-         * @ref https://github.com/stegano/vscode-template/issues/4
-         */
-        if (typeof renameFileFn === "function") {
-          const filePathInfo = path.parse(filePath);
-          const { base: originalFilename } = filePathInfo;
-          const filename = renameFileFn(originalFilename, templateName, {
-            changeCase,
-            path
-          });
-          const _filePath = path.resolve(filePathInfo.dir, filename);
-          filename && fs.renameSync(filePath, _filePath);
-        }
-      }
-    }
-  } catch (e) {
-    console.error(e);
-  }
-}
 
-// Make a default configuration file
-async function makeTemplateConfigJs(configFilePath) {
-  const defaultConfigFile = (
-    await fs.readFile(path.resolve(__dirname, "./assets", "template.config.js"))
-  ).toString("utf8");
-  await fs.writeFile(configFilePath, defaultConfigFile);
-}
+async function GenerateTemplate(context, isRenameTemplate)
+{
+	try
+	{
+		const workingPathDir = GetTargetDirectory(context);
+		if(!workingPathDir)
+		{
+			vscode.window.showWarningMessage("Could not find valid folder to save template in.");
+			return;
+		}
 
-// Make a `.templates` folder in workspace and make sample templates in `.templates` folder
-async function makeSampleTemplate(templateRootPath) {
-  const defaultSampleTemplatesPath = path.resolve(
-    __dirname,
-    "./assets/.templates"
-  );
+		let templatePaths = await fs.readdir(GlobalStoragePath);
+		const templateName = await vscode.window.showQuickPick(templatePaths, {
+			placeHolder: "Choose a template"
+		});
 
-  // Make template path and subfolders
-  await fs.mkdirs(templateRootPath);
-  await fs.copy(defaultSampleTemplatesPath, templateRootPath);
-}
+		// If no input data, do nothing
+		if (!templateName)
+		{
+			return;
+		}
 
-async function createNew(_context, isRenameTemplate) {
-  try {
-    const workspaceRootPath = vscode.workspace.rootPath;
-    const configFilePath = path.resolve(
-      workspaceRootPath,
-      "template.config.js"
-    );
+		// Copy a template to path
+		const srcPath = path.resolve(GlobalStoragePath, templateName);
 
-    // If not exist configuration file, make a default configuration file at workspace.
-    if (!(await fs.pathExists(configFilePath))) {
-      await makeTemplateConfigJs(configFilePath);
-    }
+		
+		/** @type {vscode.InputBoxOptions} */
+		var params = {
+			prompt: "Name destination folder",
+			placeHolder: templateName
+		};
+		
+		let dstTemplateName = templateName;
 
-    /**
-     * Clear the `template.config.js` cache from `require`
-     */
-    delete require.cache[configFilePath];
-    const config = require(configFilePath);
-    const templateRootPath = path.resolve(
-      workspaceRootPath,
-      config.templateRootPath || config.templatePath // deprecated `config.templatePath`
-    );
+		var input = await vscode.window.showInputBox(params);
+		if(input != null && input.length > 0)
+		{
+			dstTemplateName = input;
+		}
 
-    // If not exist `config.templateRootPath`, make `.templates` folder and make sample templates in `.templates`
-    if (!(await fs.pathExists(templateRootPath))) {
-      await makeSampleTemplate(templateRootPath);
-    }
-
-    const workingPathDir = getWorkingPathDir(
-      _context,
-      vscode.window.activeTextEditor,
-      vscode.workspace
-    );
-
-    const templatePaths = await fs.readdir(templateRootPath);
-
-    const templateName = await vscode.window.showQuickPick(templatePaths, {
-      placeHolder: "Choose a template"
-    });
-
-    // If no input data, do nothing
-    if (templateName === undefined) {
-      return;
-    }
-
-    // Copy a template to path
-    const srcPath = path.resolve(templateRootPath, templateName);
-
-    // Input template name from user
-    const dstTemplateName = isRenameTemplate
-      ? await vscode.window.showInputBox({
-        prompt: "Input a template name",
-        value: templateName
-      })
-      : templateName;
-
-    const dstPath = path.resolve(workingPathDir, dstTemplateName);
-    await fs.copy(srcPath, dstPath);
-    replaceTextInFiles(
-      dstPath,
-      dstTemplateName,
-      config.replaceFileTextFn,
-      /**
-       * @deprecated `replaceFileNameFn` is deprecated, using `renameFileFn`
-       */
-      config.renameFileFn || config.replaceFileNameFn,
-      config.renameSubDirectoriesFn
-    );
-    vscode.window.showInformationMessage("Template: copied!");
-  } catch (e) {
-    console.error(e.stack);
-    vscode.window.showErrorMessage(e.message);
-  }
+		const dstPath = path.resolve(workingPathDir, dstTemplateName);
+		await fs.copy(srcPath, dstPath);
+		
+		vscode.window.showInformationMessage("Template: copied!");
+	}
+	catch (e)
+	{
+		console.error(e.stack);
+		vscode.window.showErrorMessage(e.message);
+	}
 }
 
 /**
  * @param {vscode.ExtensionContext} context
  */
-function activate(context) {
-  // This line of code will only be executed once when your extension is activated
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with  registerCommand
-  // The commandId parameter must match the command field in package.json
-  context.subscriptions.push(
-    vscode.commands.registerCommand("extension.createNew", context =>
-      createNew(context, false)
-    ),
-    vscode.commands.registerCommand("extension.createNewWithRename", context =>
-      createNew(context, true)
-    )
-  );
+async function SaveFolderAsTemplate(context)
+{
+	let targetPath = GetTargetDirectory(context);
+	if(!targetPath)
+	{
+		vscode.window.showWarningMessage("Could not find valid folder to save as template.");
+		return;
+	}
+	let nameOfFolder = path.basename(targetPath);
+
+	/** @type {vscode.InputBoxOptions} */
+	let params = {
+		prompt: "Choose your template name",
+		placeHolder: nameOfFolder
+	};
+
+	var templateName  = nameOfFolder;
+	var input = await vscode.window.showInputBox(params);
+	if(input != null && input.length > 0)
+	{
+		templateName = input;
+	}
+	
+	let destinationFolder = GlobalStoragePath + "\\" + templateName;
+	await fs.mkdir(destinationFolder);
+	await fs.copy(targetPath, destinationFolder);
+
+	vscode.window.showInformationMessage("Template: Saved Template Successfully!");
 }
 
-exports.activate = activate;
+async function DeleteTemplate()
+{
+	let templatePaths = await fs.readdir(GlobalStoragePath);
+
+	/** @type {vscode.QuickPickOptions} */
+	let params = {
+		placeHolder: "Pick a template to delete",
+		canPickMany: true
+	};
+
+	/** @type {string[]} */
+	// @ts-ignore
+	var result = await vscode.window.showQuickPick(templatePaths, params);
+	if(!result || result.length == 0)
+	{
+		return;
+	}
+
+	result.forEach((/** @type {string} */ template) => 
+	{
+		let folderToDelete = GlobalStoragePath + "\\" + template;
+		fs.remove(folderToDelete);
+	});
+
+	vscode.window.showInformationMessage("Template: Deleted " + result.length + " Templates!");
+}
+
+/**
+ * @param {vscode.ExtensionContext} context
+ */
+function ExtensionActivated(context)
+{
+	// our global storage folder is generated for us, we're only provided a path that we should use for storage.
+	if(!fs.existsSync(context.globalStoragePath))
+	{
+		fs.mkdirSync(context.globalStoragePath);
+	}
+
+	// save it in a global variable so that we can access it without a context
+	GlobalStoragePath = context.globalStoragePath;
+
+	// This line of code will only be executed once when your extension is activated
+	// The command has been defined in the package.json file
+	// Now provide the implementation of the command with  registerCommand
+	// The commandId parameter must match the command field in package.json
+	context.subscriptions.push(
+		vscode.commands.registerCommand("extension.insertTemplate", context =>
+			GenerateTemplate(context, false)
+		),
+		vscode.commands.registerCommand("extension.saveFolderAsTemplate", context =>
+			SaveFolderAsTemplate(context)
+		),
+		vscode.commands.registerCommand("extension.deleteTemplate", context =>
+			DeleteTemplate()
+		),
+	);
+}
+
+exports.activate = ExtensionActivated;
 
 // this method is called when your extension is deactivated
-function deactivate() { }
+function ExtensionDeactivated() { }
 
 module.exports = {
-  activate,
-  deactivate
+	activate: ExtensionActivated,
+	deactivate: ExtensionDeactivated
 };
